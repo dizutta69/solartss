@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SolarTSS - Site Survey</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="manifest" href="/static/manifest.json">
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans">
+    <div class="max-w-md mx-auto bg-white min-h-screen shadow-md flex flex-col">
+        <header class="bg-blue-900 text-white p-4 sticky top-0 z-50 flex justify-between items-center shadow">
+            <h1 class="font-bold text-lg">SolarTSS ☀️</h1>
+            <span id="estado-guardado" class="text-xs bg-emerald-500 px-2 py-1 rounded text-white font-medium opacity-0 transition-opacity duration-300">Autoguardado</span>
+        </header>
+        <main class="p-4 flex-grow">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</body>
+</html>

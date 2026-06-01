@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block content %}
+<form id="surveyForm" action="/solartss/finalizar" method="POST" class="space-y-6">
+    <input type="hidden" name="id_visita" id="id_visita" value="{{ id_visita }}">
+
+    <div>
+        <label class="block font-medium text-sm text-slate-700 mb-1">Tipo de Instalación</label>
+        <select name="tipo_instalacion" class="w-full border rounded p-2 bg-slate-50 target-save">
+	<option value="Residencial" {% if progreso.get('tipo_instalacion') == 'Residencial' %}selected{% endif %}>Residencial</option>
+	<option value="Comercial" {% if progreso.get('tipo_instalacion') == 'Comercial' %}selected{% endif %}>Comercial</option>
+        </select>
+    </div>
+
+    <div class="bg-slate-50 p-3 rounded-lg border space-y-4">
+        <h3 class="font-bold text-sm text-blue-900 uppercase">Información del Cliente</h3>
+        <div>
+            <label class="block text-xs text-slate-600 mb-1">Nombre Completo</label>
+            <input type="text" name="cliente" value="{{ progreso.cliente or '' }}" class="w-full border rounded p-2 target-save" placeholder="Nombre">
+        </div>
+        <div>
+            <label class="block text-xs text-slate-600 mb-1">Dirección del Sitio</label>
+            <input type="text" name="direccion" value="{{ progreso.direccion or '' }}" class="w-full border rounded p-2 target-save" placeholder="Dirección">
+        </div>
+        <div>
+            <label class="block text-xs text-slate-600 mb-1">Coordenadas GPS</label>
+            <div class="flex gap-2">
+                <input type="text" id="gps" name="gps" value="{{ progreso.gps or '' }}" class="w-full border rounded p-2 target-save" placeholder="Lat, Lon">
+                <button type="button" onclick="obtenerUbicacion()" class="bg-blue-600 text-white px-3 rounded text-sm">📍 GPS</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-slate-50 p-3 rounded-lg border space-y-4">
+        <h3 class="font-bold text-sm text-blue-900 uppercase">Infraestructura y Techo</h3>
+        <div>
+            <label class="block text-xs text-slate-600 mb-1">Tipo de Cubierta</label>
+            <input type="text" name="tipo_cubierta" value="{{ progreso.tipo_cubierta or '' }}" class="w-full border rounded p-2 target-save" placeholder="Teja, losa...">
+        </div>
+        <div>
+            <label class="block text-xs text-slate-600 mb-1">Inclinación (°)</label>
+            <input type="number" name="inclinacion" value="{{ progreso.inclinacion or '' }}" class="w-full border rounded p-2 target-save" placeholder="Inclinación">
+        </div>
+        <div>
+            <label class="block text-xs text-slate-600 mb-1">Tipo de Red Eléctrica</label>
+            <select name="tipo_red" class="w-full border rounded p-2 target-save">
+		<option value="Monofasica" {% if progreso.get('tipo_red') == 'Monofasica' %}selected{% endif %}>Monofásica</option>
+		<option value="Bifasica" {% if progreso.get('tipo_red') == 'Bifasica' %}selected{% endif %}>Bifásica</option>
+		<option value="Trifasica" {% if progreso.get('tipo_red') == 'Trifasica' %}selected{% endif %}>Trifásica</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs text-slate-600 mb-1">Breaker Principal</label>
+            <input type="text" name="breaker_principal" value="{{ progreso.breaker_principal or '' }}" class="w-full border rounded p-2 target-save" placeholder="Ej. 3x40A">
+        </div>
+    </div>
+
+    <div class="bg-slate-50 p-3 rounded-lg border space-y-4">
+        <h3 class="font-bold text-sm text-blue-900 uppercase">Registro Fotográfico</h3>
+        <div>
+            <label class="block text-xs text-slate-600 mb-1">Foto Recibo de Luz</label>
+            <input type="file" accept="image/*" capture="environment" onchange="subirFotoAsync('recibo', this)" class="w-full text-sm text-slate-500">
+        </div>
+        <div>
+            <label class="block text-xs text-slate-600 mb-1">Foto Tablero Eléctrico</label>
+            <input type="file" accept="image/*" capture="environment" onchange="subirFotoAsync('tablero', this)" class="w-full text-sm text-slate-500">
+        </div>
+        <div>
+            <label class="block text-xs text-slate-600 mb-1">Foto Área de Techo</label>
+            <input type="file" accept="image/*" capture="environment" onchange="subirFotoAsync('techo', this)" class="w-full text-sm text-slate-500">
+        </div>
+    </div>
+
+    <button type="submit" class="w-full bg-emerald-600 text-white font-bold p-3 rounded-lg shadow block text-center">
+        🚀 Finalizar y Enviar a Google
+    </button>
+</form>
+
+<script>
+    function alertarGuardado() {
+        const badge = document.getElementById("estado-guardado");
+        badge.style.opacity = "1";
+        setTimeout(() => badge.style.opacity = "0", 1200);
+    }
+
+    document.querySelectorAll('.target-save').forEach(element => {
+        element.addEventListener('blur', () => {
+            const id_visita = document.getElementById("id_visita").value;
+            const formData = new FormData();
+            formData.append("id_visita", id_visita);
+            formData.append(element.name, element.value);
+
+            fetch('/api/survey/guardar-parcial', { method: 'POST', body: formData, credentials: 'include' })
+            .then(() => alertarGuardado());
+        });
+    });
+
+    function subirFotoAsync(tipo, inputElement) {
+        if (inputElement.files.length === 0) return;
+        const id_visita = document.getElementById("id_visita").value;
+        const formData = new FormData();
+        formData.append("id_visita", id_visita);
+        formData.append("tipo_foto", tipo);
+        formData.append("foto", inputElement.files[0]);
+
+        fetch('/api/survey/subir-foto', { method: 'POST', body: formData, credentials: 'include' })
+        .then(() => alertarGuardado());
+    }
+
+    function obtenerUbicacion() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition((pos) => {
+                const inputGps = document.getElementById("gps");
+                inputGps.value = `${pos.coords.latitude}, ${pos.coords.longitude}`;
+                inputGps.dispatchEvent(new Event('blur'));
+            });
+        }
+    }
+</script>
+{% endblock %}

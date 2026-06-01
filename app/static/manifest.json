@@ -1,0 +1,16 @@
+{
+  "short_name": "SolarTSS",
+  "name": "SolarTSS Site Survey",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3222/3222672.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/solartss",
+  "background_color": "#1e3a8a",
+  "theme_color": "#1e3a8a",
+  "display": "standalone",
+  "orientation": "portrait"
+}
