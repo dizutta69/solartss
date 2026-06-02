@@ -185,9 +185,8 @@ async function enviarFormulario(event) {
     event.preventDefault();
     const btn = document.getElementById("btnEnviar");
     btn.disabled = true;
-    btn.innerText = "Sincronizando con Google...";
+    btn.innerText = "Diagnosticando conexión...";
 
-    // Creamos el contenedor nativo que Google Apps Script procesa sin fallos
     const formData = new URLSearchParams();
     formData.append("id_visita", document.getElementById("id_visita").value);
     formData.append("tipo_instalacion", document.getElementById("tipo_instalacion").value);
@@ -199,29 +198,44 @@ async function enviarFormulario(event) {
     formData.append("tipo_red", document.getElementById("tipo_red").value);
     formData.append("breaker_principal", document.getElementById("breaker_principal").value);
     
-    // Inyectamos las fotos codificadas directamente al formulario
-    formData.append("foto_recibo", fotosBase64.recibo);
-    formData.append("foto_tablero", fotosBase64.tablero);
-    formData.append("foto_techo", fotosBase64.techo);
+    formData.append("foto_recibo", fotosBase64.recibo || "");
+    formData.append("foto_tablero", fotosBase64.tablero || "");
+    formData.append("foto_techo", fotosBase64.techo || "");
 
     try {
-        // Ejecutamos el envío estándar compatible con todas las redes móviles
-        await fetch(URL_APPS_SCRIPT, {
+        // Forzamos modo 'cors' para capturar la respuesta real del servidor
+        const response = await fetch(URL_APPS_SCRIPT, {
             method: 'POST',
-            mode: 'no-cors',
+            mode: 'cors', 
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: formData.toString()
         });
         
-        alert("¡Levantamiento guardado con éxito en Google!");
-        localStorage.clear();
-        window.location.reload();
+        const textoRespuesta = await response.text();
+        
+        // Diagnóstico en pantalla
+        alert("RESPUESTA CRUDA DE GOOGLE:\n" + textoRespuesta);
+        
+        try {
+            const json = JSON.parse(textoRespuesta);
+            if(json.status === "success") {
+                alert("¡Guardado real en Google Sheets con éxito!");
+                localStorage.clear();
+                window.location.reload();
+            } else {
+                alert("Google Apps Script falló internamente: " + json.message);
+            }
+        } catch(e) {
+            alert("No se recibió un JSON válido. El script falló antes de procesar.");
+        }
+
     } catch (error) {
-        alert("Error al enviar los datos: " + error);
+        alert("ERROR CRÍTICO DE RED / CORS:\n" + error.message);
+    } finally {
         btn.disabled = false;
         btn.innerText = "🚀 Finalizar y Enviar a Google";
     }
-}    
+}   
     </script>
 </body>
 </html>
