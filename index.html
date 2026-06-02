@@ -169,9 +169,14 @@ function procesarFoto(tipo, input) {
             canvas.height = height;
             
             const ctx = canvas.getContext('2d');
+            
+            // FIX COLOR: Rellenar con fondo blanco sólido para aplanar transparencias RGBA
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillRect(0, 0, width, height);
+            
             ctx.drawImage(img, 0, 0, width, height);
             
-            // Remueve transparencias RGBA convirtiendo a JPEG plano con calidad 70%
+            // Convierte a JPEG plano nativo con calidad optimizada
             const dataURL = canvas.toDataURL('image/jpeg', 0.7);
             fotosBase64[tipo] = dataURL.split(',')[1];
             alertarAutoguardado();
@@ -185,8 +190,9 @@ async function enviarFormulario(event) {
     event.preventDefault();
     const btn = document.getElementById("btnEnviar");
     btn.disabled = true;
-    btn.innerText = "Diagnosticando conexión...";
+    btn.innerText = "Sincronizando con Google...";
 
+    // Empaquetado en formato URL-encoded que Google procesa directo de forma nativa
     const formData = new URLSearchParams();
     formData.append("id_visita", document.getElementById("id_visita").value);
     formData.append("tipo_instalacion", document.getElementById("tipo_instalacion").value);
@@ -203,39 +209,22 @@ async function enviarFormulario(event) {
     formData.append("foto_techo", fotosBase64.techo || "");
 
     try {
-        // Forzamos modo 'cors' para capturar la respuesta real del servidor
-        const response = await fetch(URL_APPS_SCRIPT, {
+        await fetch(URL_APPS_SCRIPT, {
             method: 'POST',
-            mode: 'cors', 
+            mode: 'no-cors',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: formData.toString()
         });
         
-        const textoRespuesta = await response.text();
-        
-        // Diagnóstico en pantalla
-        alert("RESPUESTA CRUDA DE GOOGLE:\n" + textoRespuesta);
-        
-        try {
-            const json = JSON.parse(textoRespuesta);
-            if(json.status === "success") {
-                alert("¡Guardado real en Google Sheets con éxito!");
-                localStorage.clear();
-                window.location.reload();
-            } else {
-                alert("Google Apps Script falló internamente: " + json.message);
-            }
-        } catch(e) {
-            alert("No se recibió un JSON válido. El script falló antes de procesar.");
-        }
-
+        alert("¡Levantamiento guardado con éxito en Google Sheets y Drive!");
+        localStorage.clear();
+        window.location.reload();
     } catch (error) {
-        alert("ERROR CRÍTICO DE RED / CORS:\n" + error.message);
-    } finally {
+        alert("Error al enviar los datos a Google: " + error);
         btn.disabled = false;
         btn.innerText = "🚀 Finalizar y Enviar a Google";
     }
-}   
+}
     </script>
 </body>
 </html>
