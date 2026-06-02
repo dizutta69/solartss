@@ -99,129 +99,130 @@
     </div>
 
     <script>
-        // CONFIGURACIÓN DE URL DE ACCESO
-        const URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbzU0-z7BY3wP1BUXZUS06JzL7gQ-ydpXmK-hZjWiXDQsrKZp8i7v6mv2HbepXTjHTBbqg/exec";
-        const PASS_CORRECTA = "ZuttaSolar2026*"; 
+// CONFIGURACIÓN DE URL DE ACCESO
+const URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbzU0-z7BY3wP1BUXZUS06JzL7gQ-ydpXmK-hZjWiXDQsrKZp8i7v6mv2HbepXTjHTBbqg/exec";
+const PASS_CORRECTA = "ZuttaSolar2026*"; 
+
+let fotosBase64 = { recibo: "", tablero: "", techo: "" };
+
+function verificarLogin() {
+    const pass = document.getElementById("appPass").value;
+    if (pass === PASS_CORRECTA) {
+        document.getElementById("loginSection").classList.add("hidden");
+        document.getElementById("surveyForm").classList.remove("hidden");
+        inicializarFormulario();
+    } else {
+        document.getElementById("loginError").classList.remove("hidden");
+    }
+}
+
+function inicializarFormulario() {
+    if (!localStorage.getItem("id_visita")) {
+        localStorage.setItem("id_visita", Math.random().toString(36).substring(2, 10));
+    }
+    document.getElementById("id_visita").value = localStorage.getItem("id_visita");
+    
+    // Cargar datos guardados previamente del LocalStorage
+    document.querySelectorAll('.target-save').forEach(input => {
+        const valorGuardado = localStorage.getItem(input.id);
+        if (valorGuardado) input.value = valorGuardado;
+
+        // Guardado incremental
+        input.addEventListener('input', () => {
+            localStorage.setItem(input.id, input.value);
+            alertarAutoguardado();
+        });
+    });
+}
+
+function alertarAutoguardado() {
+    const badge = document.getElementById("estado-guardado");
+    badge.style.opacity = "1";
+    setTimeout(() => badge.style.opacity = "0", 1000);
+}
+
+function obtenerUbicacion() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((pos) => {
+            const inputGps = document.getElementById("gps");
+            inputGps.value = `${pos.coords.latitude}, ${pos.coords.longitude}`;
+            localStorage.setItem("gps", inputGps.value);
+            alertarAutoguardado();
+        });
+    }
+}
+
+function procesarFoto(tipo, input) {
+    if (input.files.length === 0) return;
+    const file = input.files[0];
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            
+            if (width > 1200) { height *= 1200 / width; width = 1200; }
+            canvas.width = width;
+            canvas.height = height;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Remueve transparencias RGBA convirtiendo a JPEG plano con calidad 70%
+            const dataURL = canvas.toDataURL('image/jpeg', 0.7);
+            fotosBase64[tipo] = dataURL.split(',')[1];
+            alertarAutoguardado();
+        }
+        img.src = e.target.result;
+    }
+    reader.readAsDataURL(file);
+}
+
+// FIX: Declarada correctamente como función asíncrona estándar
+async function enviarFormulario(event) {
+    event.preventDefault();
+    const btn = document.getElementById("btnEnviar");
+    btn.disabled = true;
+    btn.innerText = "Sincronizando con Google...";
+
+    const payload = {
+        id_visita: document.getElementById("id_visita").value,
+        tipo_instalacion: document.getElementById("tipo_instalacion").value,
+        cliente: document.getElementById("cliente").value,
+        direccion: document.getElementById("direccion").value,
+        gps: document.getElementById("gps").value,
+        tipo_cubierta: document.getElementById("tipo_cubierta").value,
+        inclinacion: document.getElementById("inclinacion").value,
+        tipo_red: document.getElementById("tipo_red").value,
+        breaker_principal: document.getElementById("breaker_principal").value,
+        fotos: [
+            { nombre: "recibo.jpg", bytes: fotosBase64.recibo },
+            { nombre: "tablero.jpg", bytes: fotosBase64.tablero },
+            { nombre: "techo.jpg", bytes: fotosBase64.techo }
+        ]
+    };
+
+    try {
+        const response = await fetch(URL_APPS_SCRIPT, {
+            method: 'POST',
+            mode: 'no-cors', // Evita bloqueos de CORS en navegadores móviles
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
         
-        let fotosBase64 = { recibo: "", tablero: "", techo: "" };
-
-        function verificarLogin() {
-            const pass = document.getElementById("appPass").value;
-            if (pass === PASS_CORRECTA) {
-                document.getElementById("loginSection").classList.add("hidden");
-                document.getElementById("surveyForm").classList.remove("hidden");
-                inicializarFormulario();
-            } else {
-                document.getElementById("loginError").classList.remove("hidden");
-            }
-        }
-
-        function inicializarFormulario() {
-            if (!localStorage.getItem("id_visita")) {
-                localStorage.setItem("id_visita", Math.random().toString(36).substring(2, 10));
-            }
-            document.getElementById("id_visita").value = localStorage.getItem("id_visita");
-            
-            // Cargar datos guardados previamente del LocalStorage (Reemplaza a SQLite en el celular)
-            document.querySelectorAll('.target-save').forEach(input => {
-                const valorGuardado = localStorage.getItem(input.id);
-                if (valorGuardado) input.value = valorGuardado;
-
-                // Guardado en caliente incremental
-                input.addEventListener('input', () => {
-                    localStorage.setItem(input.id, input.value);
-                    alertarAutoguardado();
-                });
-            });
-        }
-
-        function alertarAutoguardado() {
-            const badge = document.getElementById("estado-guardado");
-            badge.style.opacity = "1";
-            setTimeout(() => badge.style.opacity = "0", 1000);
-        }
-
-        function obtenerUbicacion() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition((pos) => {
-                    const inputGps = document.getElementById("gps");
-                    inputGps.value = `${pos.coords.latitude}, ${pos.coords.longitude}`;
-                    localStorage.setItem("gps", inputGps.value);
-                    alertarAutoguardado();
-                });
-            }
-        }
-
-        // Optimiza la foto directamente en el navegador reduciendo el canvas para no saturar la red
-        function procesarFoto(tipo, input) {
-            if (input.files.length === 0) return;
-            const file = input.files[0];
-            const reader = new FileReader();
-            
-            reader.onload = function(e) {
-                const img = new Image();
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    let width = img.width;
-                    let height = img.height;
-                    
-                    if (width > 1200) { height *= 1200 / width; width = 1200; }
-                    canvas.width = width;
-                    canvas.height = height;
-                    
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, width, height);
-                    
-                    // Convierte de forma segura a JPEG plano (Remueve transparencias RGBA automáticamente)
-                    const dataURL = canvas.toDataURL('image/jpeg', 0.7);
-                    fotosBase64[tipo] = dataURL.split(',')[1];
-                    alertarAutoguardado();
-                }
-                img.src = e.target.result;
-            }
-            reader.readAsDataURL(file);
-        }
-
-        async var enviarFormulario(event) {
-            event.preventDefault();
-            const btn = document.getElementById("btnEnviar");
-            btn.disabled = true;
-            btn.innerText = "Sincronizando con Google...";
-
-            const payload = {
-                id_visita: document.getElementById("id_visita").value,
-                tipo_instalacion: document.getElementById("tipo_instalacion").value,
-                cliente: document.getElementById("cliente").value,
-                direccion: document.getElementById("direccion").value,
-                gps: document.getElementById("gps").value,
-                tipo_cubierta: document.getElementById("tipo_cubierta").value,
-                inclinacion: document.getElementById("inclinacion").value,
-                tipo_red: document.getElementById("tipo_red").value,
-                breaker_principal: document.getElementById("breaker_principal").value,
-                fotos: [
-                    { nombre: "recibo.jpg", bytes: fotosBase64.recibo },
-                    { nombre: "tablero.jpg", bytes: fotosBase64.tablero },
-                    { nombre: "techo.jpg", bytes: fotosBase64.techo }
-                ]
-            };
-
-            try {
-                const response = await fetch(URL_APPS_SCRIPT, {
-                    method: 'POST',
-                    mode: 'no-cors', // Evita problemas de CORS en el navegador
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                
-                alert("¡Levantamiento guardado con éxito en Google!");
-                localStorage.clear();
-                window.location.reload();
-            } catch (error) {
-                alert("Error al enviar los datos: " + error);
-                btn.disabled = false;
-                btn.innerText = "🚀 Finalizar y Enviar a Google";
-            }
-        }
+        alert("¡Levantamiento guardado con éxito en Google!");
+        localStorage.clear();
+        window.location.reload();
+    } catch (error) {
+        alert("Error al enviar los datos: " + error);
+        btn.disabled = false;
+        btn.innerText = "🚀 Finalizar y Enviar a Google";
+    }
+}
+    
     </script>
 </body>
 </html>
