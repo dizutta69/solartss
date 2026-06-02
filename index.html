@@ -1,108 +1,223 @@
-function doPost(e) {
-  try {
-    // 1. Obtener parámetros estructurados desde el formulario
-    var idVisita = e.parameter.id_visita || "SIN_ID";
-    var tipoInstalacion = e.parameter.tipo_instalacion || "";
-    var nombreCliente = e.parameter.cliente || "Anonimo";
-    var direccion = e.parameter.direccion || "";
-    var gps = e.parameter.gps || "";
-    var tipoCubierta = e.parameter.tipo_cubierta || "";
-    var inclinacion = e.parameter.inclinacion || "";
-    var tipoRed = e.parameter.tipo_red || "";
-    var breakerPrincipal = e.parameter.breaker_principal || "";
-    
-    // ID Corregido y validado de tu carpeta raíz de Drive
-    var idCarpetaMaestra = "1KeEkJYhey5HyDJKFLCcR1JdO0Q8i8LG3"; 
-    
-    // 2. Abrir carpeta raíz y crear la subcarpeta única de este cliente
-    var carpetaMaestra = DriveApp.getFolderById(idCarpetaMaestra);
-    var nombreCarpeta = "Survey_" + nombreCliente + "_" + idVisita;
-    var carpetaCliente = carpetaMaestra.createFolder(nombreCarpeta);
-    
-    // 3. Crear el nuevo archivo de cálculo exclusivo para este levantamiento
-    var nuevoSS = SpreadsheetApp.create("Reporte_Survey_" + nombreCliente + "_" + idVisita);
-    var archivoSS = DriveApp.getFileById(nuevoSS.getId());
-    carpetaCliente.addFile(archivoSS);
-    DriveApp.getRootFolder().removeFile(archivoSS); // Limpia la raíz de tu Drive
-    
-    // 4. Configurar Pestaña 1: Datos Técnicos (Formato Reporte Vertical)
-    var hojaDatos = nuevoSS.getSheets()[0];
-    hojaDatos.setName("Datos");
-    
-    hojaDatos.getRange("A1:B1").merge().setValue("REPORTE TÉCNICO - SOLAR TSS").setBackground("#1e3a8a").setFontColor("#ffffff").setFontWeight("bold").setHorizontalAlignment("center");
-    
-    var filasDatos = [
-      ["ID de Visita:", idVisita],
-      ["Tipo de Instalación:", tipoInstalacion],
-      ["Cliente:", nombreCliente],
-      ["Dirección del Sitio:", direccion],
-      ["Coordenadas GPS:", gps],
-      ["Tipo de Cubierta:", tipoCubierta],
-      ["Inclinación (°):", inclinacion],
-      ["Tipo de Red Eléctrica:", tipoRed],
-      ["Breaker Principal:", breakerPrincipal],
-      ["Enlace a Carpeta de Evidencias:", carpetaCliente.getUrl()]
-    ];
-    
-    for (var i = 0; i < filasDatos.length; i++) {
-      hojaDatos.appendRow(filasDatos[i]);
-    }
-    
-    // Estilos estéticos de la hoja de datos
-    hojaDatos.getRange("A2:A11").setFontWeight("bold").setBackground("#f1f5f9");
-    hojaDatos.setColumnWidth(1, 220);
-    hojaDatos.setColumnWidth(2, 420);
-    hojaDatos.getRange("A1:B11").setBorder(true, true, true, true, true, true);
-
-    // 5. Configurar Pestaña 2: Fotos incrustadas dentro de las celdas
-    var hojaFotos = nuevoSS.insertSheet("Fotos");
-    hojaFotos.setColumnWidth(1, 250);
-    hojaFotos.setColumnWidth(2, 400);
-    
-    hojaFotos.getRange("A1").setValue("Tipo de Registro").setFontWeight("bold").setBackground("#1e3a8a").setFontColor("#ffffff").setHorizontalAlignment("center");
-    hojaFotos.getRange("B1").setValue("Visualización de Foto (In-Cell)").setFontWeight("bold").setBackground("#1e3a8a").setFontColor("#ffffff").setHorizontalAlignment("center");
-    
-    var tiposFotos = ["recibo", "tablero", "techo"];
-    var nombresVisuales = ["Foto Recibo de Luz", "Foto Tablero Eléctrico", "Foto Área de Techo"];
-    
-    var filaActual = 2;
-    for (var j = 0; j < tiposFotos.length; j++) {
-      var fotoBytes = e.parameter["foto_" + tiposFotos[j]];
-      
-      hojaFotos.getRange(filaActual, 1).setValue(nombresVisuales[j]).setFontWeight("bold").setVerticalAlignment("middle").setHorizontalAlignment("center");
-      hojaFotos.setRowHeight(filaActual, 220); // Alto de celda óptimo para renderizar la imagen
-      
-      if (fotoBytes && fotoBytes.length > 0) {
-        var bytes = Utilities.base64Decode(fotoBytes);
-        var blob = Utilities.newBlob(bytes, "image/jpeg", tiposFotos[j] + ".jpg");
-        var archivoFoto = carpetaCliente.createFile(blob);
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SolarTSS - Site Survey</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans">
+    <div class="max-w-md mx-auto bg-white min-h-screen shadow-md flex flex-col">
+        <header class="bg-blue-900 text-white p-4 sticky top-0 z-50 flex justify-between items-center shadow">
+            <h1 class="font-bold text-lg">SolarTSS ☀️</h1>
+            <span id="estado-guardado" class="text-xs bg-emerald-500 px-2 py-1 rounded text-white font-medium opacity-0 transition-opacity duration-300">Autoguardado</span>
+        </header>
         
-        // Uso de la fórmula nativa IMAGE para incrustar la foto directo en la celda B
-        hojaFotos.getRange(filaActual, 2).setFormula('=IMAGE("' + archivoFoto.getUrl() + '")');
-      } else {
-        hojaFotos.getRange(filaActual, 2).setValue("No adjuntada en visita").setFontColor("#94a3b8").setVerticalAlignment("middle").setHorizontalAlignment("center");
-      }
-      filaActual++;
+        <main class="p-4 flex-grow">
+            <div id="loginSection" class="space-y-4 py-8">
+                <h2 class="text-xl font-bold text-center text-blue-900">Acceso Técnico</h2>
+                <input type="password" id="appPass" class="w-full border rounded p-3 text-center" placeholder="Introduce la contraseña técnica">
+                <button onclick="verificarLogin()" class="w-full bg-blue-900 text-white font-bold p-3 rounded-lg">Entrar</button>
+                <p id="loginError" class="text-red-500 text-sm text-center hidden">Contraseña incorrecta</p>
+            </div>
+
+            <form id="surveyForm" class="space-y-6 hidden" onsubmit="enviarFormulario(event)">
+                <input type="hidden" id="id_visita" name="id_visita">
+
+                <div>
+                    <label class="block font-medium text-sm text-slate-700 mb-1">Tipo de Instalación</label>
+                    <select id="tipo_instalacion" name="tipo_instalacion" class="w-full border rounded p-2 bg-slate-50 target-save">
+                        <option value="Residencial">Residencial</option>
+                        <option value="Comercial">Comercial</option>
+                    </select>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-lg border space-y-4">
+                    <h3 class="font-bold text-sm text-blue-900 uppercase">Información del Cliente</h3>
+                    <div>
+                        <label class="block text-xs text-slate-600 mb-1">Nombre Completo</label>
+                        <input type="text" id="cliente" name="cliente" class="w-full border rounded p-2 target-save" placeholder="Nombre">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-600 mb-1">Dirección del Sitio</label>
+                        <input type="text" id="direccion" name="direccion" class="w-full border rounded p-2 target-save" placeholder="Dirección">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-600 mb-1">Coordenadas GPS</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="gps" name="gps" class="w-full border rounded p-2 target-save" placeholder="Lat, Lon">
+                            <button type="button" onclick="obtenerUbicacion()" class="bg-blue-600 text-white px-3 rounded text-sm">📍 GPS</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-lg border space-y-4">
+                    <h3 class="font-bold text-sm text-blue-900 uppercase">Infraestructura y Techo</h3>
+                    <div>
+                        <label class="block text-xs text-slate-600 mb-1">Tipo de Cubierta</label>
+                        <input type="text" id="tipo_cubierta" name="tipo_cubierta" class="w-full border rounded p-2 target-save" placeholder="Teja, losa...">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-600 mb-1">Inclinación (°)</label>
+                        <input type="number" id="inclinacion" name="inclinacion" class="w-full border rounded p-2 target-save" placeholder="Inclinación">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-600 mb-1">Tipo de Red Eléctrica</label>
+                        <select id="tipo_red" name="tipo_red" class="w-full border rounded p-2 target-save">
+                            <option value="Monofasica">Monofásica</option>
+                            <option value="Bifasica">Bifásica</option>
+                            <option value="Trifasica">Trifásica</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-600 mb-1">Breaker Principal</label>
+                        <input type="text" id="breaker_principal" name="breaker_principal" class="w-full border rounded p-2 target-save" placeholder="Ej. 3x40A">
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-lg border space-y-4">
+                    <h3 class="font-bold text-sm text-blue-900 uppercase">Registro Fotográfico</h3>
+                    <div>
+                        <label class="block text-xs text-slate-600 mb-1">Foto Recibo de Luz</label>
+                        <input type="file" accept="image/*" capture="environment" onchange="procesarFoto('recibo', this)" class="w-full text-sm text-slate-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-600 mb-1">Foto Tablero Eléctrico</label>
+                        <input type="file" accept="image/*" capture="environment" onchange="procesarFoto('tablero', this)" class="w-full text-sm text-slate-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-600 mb-1">Foto Área de Techo</label>
+                        <input type="file" accept="image/*" capture="environment" onchange="procesarFoto('techo', this)" class="w-full text-sm text-slate-500">
+                    </div>
+                </div>
+
+                <button type="submit" id="btnEnviar" class="w-full bg-emerald-600 text-white font-bold p-3 rounded-lg shadow text-center">
+                    🚀 Finalizar y Enviar a Google
+                </button>
+            </form>
+        </main>
+    </div>
+
+    <script>
+const URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbzU0-z7BY3wP1BUXZUS06JzL7gQ-ydpXmK-hZjWiXDQsrKZp8i7v6mv2HbepXTjHTBbqg/exec";
+const PASS_CORRECTA = "ZuttaSolar2026*"; 
+
+let fotosBase64 = { recibo: "", tablero: "", techo: "" };
+
+function verificarLogin() {
+    const pass = document.getElementById("appPass").value;
+    if (pass === PASS_CORRECTA) {
+        document.getElementById("loginSection").classList.add("hidden");
+        document.getElementById("surveyForm").classList.remove("hidden");
+        inicializarFormulario();
+    } else {
+        document.getElementById("loginError").classList.remove("hidden");
     }
-    
-    hojaFotos.getRange("A1:B4").setBorder(true, true, true, true, true, true);
-    
-    // Responder con éxito rotundo al frontend en la web
-    return ContentService.createTextOutput(JSON.stringify({"status": "success"}))
-                         .setMimeType(ContentService.MimeType.JSON);
-                         
-  } catch(err) {
-    return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": err.toString()}))
-                         .setMimeType(ContentService.MimeType.JSON);
-  }
 }
 
-function doOptions(e) {
-  return ContentService.createTextOutput("")
-                       .setMimeType(ContentService.MimeType.TEXT)
-                       .setHeaders({
-                         "Access-Control-Allow-Origin": "*",
-                         "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-                         "Access-Control-Allow-Headers": "Content-Type"
-                       });
+function inicializarFormulario() {
+    if (!localStorage.getItem("id_visita")) {
+        localStorage.setItem("id_visita", Math.random().toString(36).substring(2, 10));
+    }
+    document.getElementById("id_visita").value = localStorage.getItem("id_visita");
+    
+    document.querySelectorAll('.target-save').forEach(input => {
+        const valorGuardado = localStorage.getItem(input.id);
+        if (valorGuardado) input.value = valorGuardado;
+
+        input.addEventListener('input', () => {
+            localStorage.setItem(input.id, input.value);
+            alertarAutoguardado();
+        });
+    });
 }
+
+function alertarAutoguardado() {
+    const badge = document.getElementById("estado-guardado");
+    badge.style.opacity = "1";
+    setTimeout(() => badge.style.opacity = "0", 1000);
+}
+
+function obtenerUbicacion() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((pos) => {
+            const inputGps = document.getElementById("gps");
+            inputGps.value = `${pos.coords.latitude}, ${pos.coords.longitude}`;
+            localStorage.setItem("gps", inputGps.value);
+            alertarAutoguardado();
+        });
+    }
+}
+
+function procesarFoto(tipo, input) {
+    if (input.files.length === 0) return;
+    const file = input.files[0];
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            
+            if (width > 1200) { height *= 1200 / width; width = 1200; }
+            canvas.width = width;
+            canvas.height = height;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            const dataURL = canvas.toDataURL('image/jpeg', 0.7);
+            fotosBase64[tipo] = dataURL.split(',')[1];
+            alertarAutoguardado();
+        }
+        img.src = e.target.result;
+    }
+    reader.readAsDataURL(file);
+}
+
+async function enviarFormulario(event) {
+    event.preventDefault();
+    const btn = document.getElementById("btnEnviar");
+    btn.disabled = true;
+    btn.innerText = "Sincronizando con Google...";
+
+    // Estructuración limpia compatible con e.parameter
+    const formData = new URLSearchParams();
+    formData.append("id_visita", document.getElementById("id_visita").value);
+    formData.append("tipo_instalacion", document.getElementById("tipo_instalacion").value);
+    formData.append("cliente", document.getElementById("cliente").value);
+    formData.append("direccion", document.getElementById("direccion").value);
+    formData.append("gps", document.getElementById("gps").value);
+    formData.append("tipo_cubierta", document.getElementById("tipo_cubierta").value);
+    formData.append("inclinacion", document.getElementById("inclinacion").value);
+    formData.append("tipo_red", document.getElementById("tipo_red").value);
+    formData.append("breaker_principal", document.getElementById("breaker_principal").value);
+    
+    formData.append("foto_recibo", fotosBase64.recibo || "");
+    formData.append("foto_tablero", fotosBase64.tablero || "");
+    formData.append("foto_techo", fotosBase64.techo || "");
+
+    try {
+        await fetch(URL_APPS_SCRIPT, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData.toString()
+        });
+        
+        alert("¡Levantamiento guardado con éxito en Google Sheets y Drive!");
+        localStorage.clear();
+        window.location.reload();
+    } catch (error) {
+        alert("Error al enviar los datos a Google: " + error);
+        btn.disabled = false;
+        btn.innerText = "🚀 Finalizar y Enviar a Google";
+    }
+}
+    </script>
+</body>
+</html>
