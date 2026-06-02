@@ -99,7 +99,6 @@
     </div>
 
     <script>
-// CONFIGURACIÓN DE URL DE ACCESO
 const URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbzU0-z7BY3wP1BUXZUS06JzL7gQ-ydpXmK-hZjWiXDQsrKZp8i7v6mv2HbepXTjHTBbqg/exec";
 const PASS_CORRECTA = "ZuttaSolar2026*"; 
 
@@ -122,12 +121,10 @@ function inicializarFormulario() {
     }
     document.getElementById("id_visita").value = localStorage.getItem("id_visita");
     
-    // Cargar datos guardados previamente del LocalStorage
     document.querySelectorAll('.target-save').forEach(input => {
         const valorGuardado = localStorage.getItem(input.id);
         if (valorGuardado) input.value = valorGuardado;
 
-        // Guardado incremental
         input.addEventListener('input', () => {
             localStorage.setItem(input.id, input.value);
             alertarAutoguardado();
@@ -169,14 +166,10 @@ function procesarFoto(tipo, input) {
             canvas.height = height;
             
             const ctx = canvas.getContext('2d');
-            
-            // FIX COLOR: Rellenar con fondo blanco sólido para aplanar transparencias RGBA
             ctx.fillStyle = "#FFFFFF";
             ctx.fillRect(0, 0, width, height);
-            
             ctx.drawImage(img, 0, 0, width, height);
             
-            // Convierte a JPEG plano nativo con calidad optimizada
             const dataURL = canvas.toDataURL('image/jpeg', 0.7);
             fotosBase64[tipo] = dataURL.split(',')[1];
             alertarAutoguardado();
@@ -192,7 +185,7 @@ async function enviarFormulario(event) {
     btn.disabled = true;
     btn.innerText = "Sincronizando con Google...";
 
-    // Empaquetado en formato URL-encoded que Google procesa directo de forma nativa
+    // Usamos URLSearchParams para asegurar compatibilidad nativa con e.parameter
     const formData = new URLSearchParams();
     formData.append("id_visita", document.getElementById("id_visita").value);
     formData.append("tipo_instalacion", document.getElementById("tipo_instalacion").value);
