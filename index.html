@@ -1,85 +1,108 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DIAGNOSTICO - SolarTSS</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-900 text-slate-100 font-sans min-h-screen p-4 flex flex-col justify-center max-w-md mx-auto">
+function doPost(e) {
+  try {
+    // 1. Obtener parámetros estructurados desde el formulario
+    var idVisita = e.parameter.id_visita || "SIN_ID";
+    var tipoInstalacion = e.parameter.tipo_instalacion || "";
+    var nombreCliente = e.parameter.cliente || "Anonimo";
+    var direccion = e.parameter.direccion || "";
+    var gps = e.parameter.gps || "";
+    var tipoCubierta = e.parameter.tipo_cubierta || "";
+    var inclinacion = e.parameter.inclinacion || "";
+    var tipoRed = e.parameter.tipo_red || "";
+    var breakerPrincipal = e.parameter.breaker_principal || "";
     
-    <div class="bg-slate-800 p-6 rounded-xl shadow-2xl border border-slate-700 space-y-6">
-        <h1 class="text-xl font-bold text-center text-amber-400">⚠️ Panel de Diagnóstico Técnico ⚠️</h1>
-        <p class="text-sm text-slate-400 text-center">Rellena este test rápido para forzar y capturar el error interno de Google.</p>
-        
-        <form id="diagForm" onsubmit="probarEnvio(event)" class="space-y-4">
-            <div>
-                <label class="block text-xs text-slate-400 mb-1">Nombre de Cliente de Prueba</label>
-                <input type="text" id="test_cliente" class="w-full bg-slate-700 border border-slate-600 rounded p-2 text-white" value="Test Diagnostico" required>
-            </div>
-            
-            <div>
-                <label class="block text-xs text-slate-400 mb-1">Simular Carga de Foto Corta</label>
-                <select id="test_foto" class="w-full bg-slate-700 border border-slate-600 rounded p-2 text-white">
-                    <option value="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=">Imagen de Prueba Liviana (1 pixel)</option>
-                    <option value="">Sin imagen (Vacío)</option>
-                </select>
-            </div>
-
-            <button type="submit" id="btnDiag" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold p-3 rounded-lg transition shadow-lg">
-                ⚡ Lanzar Test de Conexión
-            </button>
-        </form>
-    </div>
-
-    <script>
-const URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbzU0-z7BY3wP1BUXZUS06JzL7gQ-ydpXmK-hZjWiXDQsrKZp8i7v6mv2HbepXTjHTBbqg/exec";
-
-async function probarEnvio(event) {
-    event.preventDefault();
-    const btn = document.getElementById("btnDiag");
-    btn.disabled = true;
-    btn.innerText = "Conectando con Google...";
-
-    const formData = new URLSearchParams();
-    formData.append("id_visita", "diag_" + Math.random().toString(36).substring(2, 7));
-    formData.append("tipo_instalacion", "Residencial");
-    formData.append("cliente", document.getElementById("test_cliente").value);
-    formData.append("direccion", "Calle Diagnostico 123");
-    formData.append("gps", "4.0, -74.0");
-    formData.append("tipo_cubierta", "Losa");
-    formData.append("inclinacion", "15");
-    formData.append("tipo_red", "Monofasica");
-    formData.append("breaker_principal", "1x20A");
+    // ID Corregido y validado de tu carpeta raíz de Drive
+    var idCarpetaMaestra = "1KeEkJYhey5HyDJKFLCcR1JdO0Q8i8LG3"; 
     
-    // Mandamos el string base64 seleccionado
-    const stringFoto = document.getElementById("test_foto").value;
-    formData.append("foto_recibo", stringFoto);
-    formData.append("foto_tablero", stringFoto);
-    formData.append("foto_techo", stringFoto);
-
-    try {
-        // FORZAMOS MODO CORS PARA PODER LEER EL TEXTO DE ERROR
-        const response = await fetch(URL_APPS_SCRIPT, {
-            method: 'POST',
-            mode: 'cors',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: formData.toString()
-        });
-        
-        const textoRespuesta = await response.text();
-        
-        // Desplegar la respuesta cruda directamente en pantalla
-        alert("--- RESPUESTA RECIBIDA DESDE GOOGLE ---\n\n" + textoRespuesta);
-        console.log("Respuesta completa:", textoRespuesta);
-
-    } catch (error) {
-        alert("❌ ERROR CRÍTICO DE RED / CORS:\n\n" + error.message + "\n\nEsto suele pasar si el Apps Script no está publicado correctamente para 'Cualquiera' (Anyone) o si hay bloqueos de redirección.");
-    } finally {
-        btn.disabled = false;
-        btn.innerText = "⚡ Lanzar Test de Conexión";
+    // 2. Abrir carpeta raíz y crear la subcarpeta única de este cliente
+    var carpetaMaestra = DriveApp.getFolderById(idCarpetaMaestra);
+    var nombreCarpeta = "Survey_" + nombreCliente + "_" + idVisita;
+    var carpetaCliente = carpetaMaestra.createFolder(nombreCarpeta);
+    
+    // 3. Crear el nuevo archivo de cálculo exclusivo para este levantamiento
+    var nuevoSS = SpreadsheetApp.create("Reporte_Survey_" + nombreCliente + "_" + idVisita);
+    var archivoSS = DriveApp.getFileById(nuevoSS.getId());
+    carpetaCliente.addFile(archivoSS);
+    DriveApp.getRootFolder().removeFile(archivoSS); // Limpia la raíz de tu Drive
+    
+    // 4. Configurar Pestaña 1: Datos Técnicos (Formato Reporte Vertical)
+    var hojaDatos = nuevoSS.getSheets()[0];
+    hojaDatos.setName("Datos");
+    
+    hojaDatos.getRange("A1:B1").merge().setValue("REPORTE TÉCNICO - SOLAR TSS").setBackground("#1e3a8a").setFontColor("#ffffff").setFontWeight("bold").setHorizontalAlignment("center");
+    
+    var filasDatos = [
+      ["ID de Visita:", idVisita],
+      ["Tipo de Instalación:", tipoInstalacion],
+      ["Cliente:", nombreCliente],
+      ["Dirección del Sitio:", direccion],
+      ["Coordenadas GPS:", gps],
+      ["Tipo de Cubierta:", tipoCubierta],
+      ["Inclinación (°):", inclinacion],
+      ["Tipo de Red Eléctrica:", tipoRed],
+      ["Breaker Principal:", breakerPrincipal],
+      ["Enlace a Carpeta de Evidencias:", carpetaCliente.getUrl()]
+    ];
+    
+    for (var i = 0; i < filasDatos.length; i++) {
+      hojaDatos.appendRow(filasDatos[i]);
     }
+    
+    // Estilos estéticos de la hoja de datos
+    hojaDatos.getRange("A2:A11").setFontWeight("bold").setBackground("#f1f5f9");
+    hojaDatos.setColumnWidth(1, 220);
+    hojaDatos.setColumnWidth(2, 420);
+    hojaDatos.getRange("A1:B11").setBorder(true, true, true, true, true, true);
+
+    // 5. Configurar Pestaña 2: Fotos incrustadas dentro de las celdas
+    var hojaFotos = nuevoSS.insertSheet("Fotos");
+    hojaFotos.setColumnWidth(1, 250);
+    hojaFotos.setColumnWidth(2, 400);
+    
+    hojaFotos.getRange("A1").setValue("Tipo de Registro").setFontWeight("bold").setBackground("#1e3a8a").setFontColor("#ffffff").setHorizontalAlignment("center");
+    hojaFotos.getRange("B1").setValue("Visualización de Foto (In-Cell)").setFontWeight("bold").setBackground("#1e3a8a").setFontColor("#ffffff").setHorizontalAlignment("center");
+    
+    var tiposFotos = ["recibo", "tablero", "techo"];
+    var nombresVisuales = ["Foto Recibo de Luz", "Foto Tablero Eléctrico", "Foto Área de Techo"];
+    
+    var filaActual = 2;
+    for (var j = 0; j < tiposFotos.length; j++) {
+      var fotoBytes = e.parameter["foto_" + tiposFotos[j]];
+      
+      hojaFotos.getRange(filaActual, 1).setValue(nombresVisuales[j]).setFontWeight("bold").setVerticalAlignment("middle").setHorizontalAlignment("center");
+      hojaFotos.setRowHeight(filaActual, 220); // Alto de celda óptimo para renderizar la imagen
+      
+      if (fotoBytes && fotoBytes.length > 0) {
+        var bytes = Utilities.base64Decode(fotoBytes);
+        var blob = Utilities.newBlob(bytes, "image/jpeg", tiposFotos[j] + ".jpg");
+        var archivoFoto = carpetaCliente.createFile(blob);
+        
+        // Uso de la fórmula nativa IMAGE para incrustar la foto directo en la celda B
+        hojaFotos.getRange(filaActual, 2).setFormula('=IMAGE("' + archivoFoto.getUrl() + '")');
+      } else {
+        hojaFotos.getRange(filaActual, 2).setValue("No adjuntada en visita").setFontColor("#94a3b8").setVerticalAlignment("middle").setHorizontalAlignment("center");
+      }
+      filaActual++;
+    }
+    
+    hojaFotos.getRange("A1:B4").setBorder(true, true, true, true, true, true);
+    
+    // Responder con éxito rotundo al frontend en la web
+    return ContentService.createTextOutput(JSON.stringify({"status": "success"}))
+                         .setMimeType(ContentService.MimeType.JSON);
+                         
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": err.toString()}))
+                         .setMimeType(ContentService.MimeType.JSON);
+  }
 }
-    </script>
-</body>
-</html>
+
+function doOptions(e) {
+  return ContentService.createTextOutput("")
+                       .setMimeType(ContentService.MimeType.TEXT)
+                       .setHeaders({
+                         "Access-Control-Allow-Origin": "*",
+                         "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+                         "Access-Control-Allow-Headers": "Content-Type"
+                       });
+}
